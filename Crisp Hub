@@ -2,7 +2,7 @@ local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 local Window = Rayfield:CreateWindow({
    Name = "Crisp Hub💧 (Brookhaven Rp🏡)",
    Icon = 0, -- Icon in Topbar. Can use Lucide Icons (string) or Roblox Image (number). 0 to use no icon (default).
-   LoadingTitle = "Diep Hub💧",
+   LoadingTitle = "Crisp Hub💧",
    LoadingSubtitle = "by NS_James",
    Theme = "Ocean", -- Check https://docs.sirius.menu/rayfield/configuration/themes
  
