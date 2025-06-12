@@ -12,7 +12,7 @@ local Window = Rayfield:CreateWindow({
    ConfigurationSaving = {
       Enabled = false,
       FolderName = nil, -- Create a custom folder for your hub/game
-      FileName = "Crisp-hubpro"
+      FileName = "Crisphubpro"
    },
 })
  
@@ -461,29 +461,170 @@ game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("Chang
    end,
 })
  
---Tab 4 localplayer--
-local Slider = Tab5:CreateSlider({
-   Name = "WalkSpeed",
-   Range = {16, 1000},
-   Increment = 1,
-   Suffix = "",
-   CurrentValue = 16,
-   Flag = "Slider1", -- A flag is the identifier for the configuration file, make sure every element has a different flag if you're using configuration saving to ensure no overlaps
-   Callback = function(Value)
-      game.Players.LocalPlayer.Character.Humanoid.WalkSpeed = Value
-   end,
+local Players = game:GetService("Players")
+local UserInputService = game:GetService("UserInputService")
+local RunService = game:GetService("RunService")
+local player = Players.LocalPlayer
+local character = player.Character or player.CharacterAdded:Wait()
+local humanoid = character:WaitForChild("Humanoid")
+local Tab5 = Tab5 -- replace with your actual Tab5 if not already defined
+
+-- // WALK SPEED SLIDER
+Tab5:CreateSlider({
+    Name = "WalkSpeed",
+    Range = {16, 1000},
+    Increment = 1,
+    CurrentValue = 16,
+    Flag = "Slider1",
+    Callback = function(value)
+        if player.Character and player.Character:FindFirstChildOfClass("Humanoid") then
+            player.Character:FindFirstChildOfClass("Humanoid").WalkSpeed = value
+        end
+    end,
 })
-local Slider = Tab5:CreateSlider({
-   Name = "JumpPower",
-   Range = {25, 1000},
-   Increment = 1,
-   Suffix = "",
-   CurrentValue = 16,
-   Flag = "Slider2", -- A flag is the identifier for the configuration file, make sure every element has a different flag if you're using configuration saving to ensure no overlaps
-   Callback = function(Value)
-      game.Players.LocalPlayer.Character.Humanoid.JumpPower = Value
-   end,
+
+-- // JUMP POWER SLIDER
+Tab5:CreateSlider({
+    Name = "JumpPower",
+    Range = {25, 1000},
+    Increment = 1,
+    CurrentValue = 50,
+    Flag = "Slider2",
+    Callback = function(value)
+        if player.Character and player.Character:FindFirstChildOfClass("Humanoid") then
+            player.Character:FindFirstChildOfClass("Humanoid").JumpPower = value
+        end
+    end,
 })
+
+-- // INFINITE JUMP
+local infiniteJumpEnabled = false
+local jumpConnection
+
+Tab5:CreateToggle({
+    Name = "Infinite Jump",
+    CurrentValue = false,
+    Flag = "Toggle1",
+    Callback = function(enabled)
+        infiniteJumpEnabled = enabled
+        if jumpConnection then jumpConnection:Disconnect() end
+        if enabled then
+            jumpConnection = UserInputService.JumpRequest:Connect(function()
+                local char = player.Character
+                local hum = char and char:FindFirstChildOfClass("Humanoid")
+                if hum then
+                    hum:ChangeState(Enum.HumanoidStateType.Jumping)
+                end
+            end)
+        end
+    end,
+})
+
+-- // FLY SYSTEM
+local flying = false
+local flyConnection
+local flySpeed = 100
+local control = {F = 0, B = 0, L = 0, R = 0, Up = 0, Down = 0}
+
+-- FLY SPEED SLIDER
+Tab5:CreateSlider({
+    Name = "Fly Speed",
+    Range = {1, 500},
+    Increment = 1,
+    CurrentValue = 100,
+    Flag = "FlySpeedSlider",
+    Callback = function(value)
+        flySpeed = value
+    end,
+})
+
+-- MOVEMENT CONTROL
+UserInputService.InputBegan:Connect(function(input, gp)
+    if gp then return end
+    if input.KeyCode == Enum.KeyCode.W then control.F = 1 end
+    if input.KeyCode == Enum.KeyCode.S then control.B = -1 end
+    if input.KeyCode == Enum.KeyCode.A then control.L = -1 end
+    if input.KeyCode == Enum.KeyCode.D then control.R = 1 end
+    if input.KeyCode == Enum.KeyCode.Space then control.Up = 1 end
+    if input.KeyCode == Enum.KeyCode.LeftShift then control.Down = -1 end
+end)
+
+UserInputService.InputEnded:Connect(function(input)
+    if input.KeyCode == Enum.KeyCode.W then control.F = 0 end
+    if input.KeyCode == Enum.KeyCode.S then control.B = 0 end
+    if input.KeyCode == Enum.KeyCode.A then control.L = 0 end
+    if input.KeyCode == Enum.KeyCode.D then control.R = 0 end
+    if input.KeyCode == Enum.KeyCode.Space then control.Up = 0 end
+    if input.KeyCode == Enum.KeyCode.LeftShift then control.Down = 0 end
+end)
+
+-- SET FLY STATE FUNCTION
+local function setFlyState(state)
+    local character = player.Character or player.CharacterAdded:Wait()
+    local hrp = character:WaitForChild("HumanoidRootPart")
+
+    flying = state
+
+    -- Cleanup previous
+    for _, v in pairs(hrp:GetChildren()) do
+        if v:IsA("BodyGyro") or v:IsA("BodyVelocity") then
+            v:Destroy()
+        end
+    end
+    if flyConnection then
+        flyConnection:Disconnect()
+        flyConnection = nil
+    end
+
+    if flying then
+        local bg = Instance.new("BodyGyro", hrp)
+        bg.P = 9e4
+        bg.MaxTorque = Vector3.new(9e9, 9e9, 9e9)
+        bg.CFrame = hrp.CFrame
+
+        local bv = Instance.new("BodyVelocity", hrp)
+        bv.Velocity = Vector3.zero
+        bv.MaxForce = Vector3.new(9e9, 9e9, 9e9)
+
+        humanoid.PlatformStand = true
+
+        flyConnection = RunService.RenderStepped:Connect(function()
+            local cam = workspace.CurrentCamera
+            local moveVec = Vector3.new(control.L + control.R, control.Up + control.Down, -(control.F + control.B))
+            if moveVec.Magnitude > 0 then
+                local dir = cam.CFrame:VectorToWorldSpace(moveVec).Unit
+                bv.Velocity = dir * flySpeed
+            else
+                bv.Velocity = Vector3.zero
+            end
+            bg.CFrame = cam.CFrame
+        end)
+    else
+        humanoid.PlatformStand = false
+        hrp.Velocity = Vector3.zero
+    end
+end
+
+-- FLY TOGGLE (GUI)
+Tab5:CreateToggle({
+    Name = "Fly",
+    CurrentValue = false,
+    Flag = "ToggleFly",
+    Callback = function(val)
+        setFlyState(val)
+    end,
+})
+
+-- OPTIONAL: Toggle Fly with F key
+UserInputService.InputBegan:Connect(function(input, gp)
+    if not gp and input.KeyCode == Enum.KeyCode.F then
+        setFlyState(not flying)
+    end
+end)
+
+
+
+
  
 local Label = Tab4:CreateLabel("Zepeto Bundle (Girl/Boy(Body)", 76356016034708, Color3.fromRGB(255, 255, 255), false) -- Title, Icon, Color, IgnoreTheme
 
